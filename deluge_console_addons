@@ -1,0 +1,270 @@
+#!/bin/bash --
+
+# deluge_console_addons
+#
+# Copyright (C) 2017  jim kim 
+#
+# Add convenient bash functions for deluge-console  (deluge-torrent.org)     
+#  
+#
+##########################################################################
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+function deluge_add {
+
+    deluge-console add "$@"
+
+}
+
+function deluge_add_file {
+
+    if [ -e "$1" ] 
+    then
+        deluge-console add `cat "$1"`
+    fi 
+
+}
+
+function deluge_dl_dir {
+
+    if [ "$1" == "" ] ; then
+        deluge-console config download_location
+    
+    elif [ -d "$1" -a -w "$1" ]; then
+        deluge-console config -s download_location "$1"
+    
+    else
+        echo -e "dir $1 does not exist or non-writable"
+        return 1
+    fi
+
+}
+
+function deluge_dl_speed {
+
+    re='^[0-9]+$'
+
+    if [[ "$1" == "" ]] ; then
+        deluge-console config max_download_speed
+    elif ! [[ "$1" =~ $re ]] ; then
+        return 1
+    else
+        deluge-console config -s max_download_speed "$1"
+    fi
+
+}
+
+function deluge_fix_error {
+
+    TIDS=$(deluge-console info -s Error | grep "ID:"  | awk -F'[: ]+' '{print $2}')
+
+    deluge-console recheck "$TIDS"
+    deluge-console resume "$TIDS"
+
+}
+
+
+function deluge_id {
+
+    if [ ! -z "$1" ];
+    then
+        param="$1"
+    else
+        return 1
+    fi
+
+    deluge-console info | grep -i -A5 -e "Name:.*${param}.*" | grep "ID:"  | awk -F'[: ]+' '{print $2}'
+}
+
+
+function deluge_num_dl {
+
+    re='^[0-9]+$'
+
+    if [[ "$1" == "" ]] ; then
+        deluge-console config max_active_downloading
+    elif ! [[ "$1" =~ $re ]] ; then
+        return 1
+    else
+        deluge-console config -s max_active_downloading "$1"
+    fi
+
+}
+
+
+
+function deluge_pause {
+
+    if [ ! -z "$1" ];
+    then
+        param="$1"
+    else
+        return 1
+    fi
+
+    if [ "$param" == "*" ]
+    then
+        deluge-console pause *
+        return 0 
+    fi
+
+    TIDS=$( deluge_id $param )
+
+    count=`echo "$TIDS" | wc -l`
+
+    if [ "$count" != "0" ] ;
+    then 
+        deluge-console pause $TIDS 
+    fi
+}
+
+
+function deluge_progress {
+    deluge-console info  --sort=progress | grep -e 'Name:' -A7 | grep -e '--' -e 'Name' -e 'Progress' -e 'State'  
+}
+
+
+function deluge_resume {
+
+    if [ ! -z "$1" ];
+    then
+        param="$1"
+    else
+        return 1
+    fi
+
+    if [ "$param" == "*" ]
+    then
+        deluge-console resume *
+        return 0 
+    fi
+
+    TIDS=$( deluge_id $param )
+
+    count=`echo "$TIDS" | wc -l`
+
+    if [ "$count" != "0" ] ;
+    then 
+        deluge-console resume $TIDS 
+    fi
+
+}
+
+function deluge_rm {
+
+    if [ ! -z "$1" ];
+    then
+        param="$1"
+    else
+        return 1
+    fi
+
+    for i in $( deluge_id "$param" )
+    do
+        deluge-console rm "$i" 
+    done
+
+}
+
+function deluge_rm_data {
+
+    if [ ! -z "$1" ];
+    then
+        param="$1"
+    else
+        return 1
+    fi
+
+    for i in $( deluge_id "$param" )
+    do
+        deluge-console rm --remove_data $i 
+    done
+
+}
+
+function deluge_rm_seeding {
+
+    TIDS=$(deluge-console info -s Seeding | grep "ID:"  | awk -F'[: ]+' '{print $2}')
+
+    deluge-console rm "$TIDS"
+
+}
+
+
+function deluge_search {
+
+    if [ ! -z "$1" ];
+    then
+        param="$1"
+    else
+        return 1
+    fi
+
+    deluge-console info | grep -i -A5 -e "Name:.*${param}.*"
+
+}
+
+
+function deluge_start {
+
+    ip_address=`ip addr | grep -A2 'state UP' | awk -F'[/ ]+' 'END{print $3}'`
+
+    if [[ "$1" == "--dbg"  ]]; then
+        (cd $HOME && exec deluged -d --interface=$ip_address --ui-interface=127.0.0.1 --loglevel=info |& tee deluged.log)
+    else
+        (cd $HOME && exec deluged -d --interface=$ip_address --ui-interface=127.0.0.1 )
+    fi
+
+}
+
+
+function deluge_stop {
+    deluge-console halt
+}
+
+
+function deluge_upld_speed {
+
+    re='^[0-9]+$'
+
+    if [[ "$1" == "" ]] ; then
+        deluge-console config max_upload_speed
+    elif ! [[ "$1" =~ $re ]] ; then
+        return 1
+    else
+        deluge-console config -s max_upload_speed $1
+    fi
+
+}
+
+
+function deluge_watch {
+
+    if [ ! -z "$1" ];
+    then
+        param="$1"
+    else
+        return 1
+    fi
+
+    count=`deluge-console info | grep -i -c -e "Name:.*${param}*"`
+
+    if [ "$count" != "0" ] ;
+    then 
+        watch -t -n 2 "deluge-console info | grep -i -A5 -e \"Name:.*${param}.*\""
+    fi
+
+}
+
+
