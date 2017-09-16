@@ -67,10 +67,11 @@ function deluge_dl_speed {
 
 function deluge_fix_error {
 
-    TIDS=$(deluge-console info -s Error | grep "ID:"  | awk -F'[: ]+' '{print $2}')
-
-    deluge-console recheck "$TIDS"
-    deluge-console resume "$TIDS"
+    for i in $(deluge-console info -s Error | grep "ID:"  | awk -F'[: ]+' '{print $2}')
+    do
+        deluge-console recheck $i
+        deluge-console resume $i
+    done
 
 }
 
